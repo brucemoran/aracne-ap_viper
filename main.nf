@@ -1,6 +1,6 @@
 #!/usr/bin/env nextflow
 
-/* Run ARACNe-AP/$tag
+/* Run ARACNe-AP and msViper
 */
 
 params.help = ""
@@ -12,19 +12,23 @@ if (params.help) {
   log.info '------------------------------'
   log.info ''
   log.info 'Usage: '
-  log.info 'nextflow run ARACNe-AP/$tag.msviper.conda.nf \
-                      --inputCsv data/input.csv \
-                      --metaData data/metadata.csv \
-                      -c "RNAseq.nextflow.config" \
-                      -with-report "report.html" \
-                      -with-timeline "timeline.html"'
+  log.info 'nextflow run main.nf \\'
+  log.info '  --inputCsv data/input.csv \\'
+  log.info '  --metaData data/metadata.csv \\'
+  log.info '  -profile standard,singularity'
   log.info ''
   log.info 'Mandatory arguments:'
-  log.info '    --inputCsv     STRING      CSV format, requires headers: expmat,regulators,seed; these 3 entries are files in data/; input requirements: tag is ID; exprmat is TSV format; row 1 = gene, sample_1, ..., sample_n; rows +2 geneID, values_1, ..., values_n; regulators has header \'gene\' equivalent to header in exprmat, one ID per line for genes of interest (TFs, DEGs etc.)'
-  log.info '    --metaData     STRING      CSV format file: tag (matches tag in inputCsv file),metafile; metafile is CSV format with headers: sampleID,Group; Group relates group information used to discriminate between samples for Viper analysis'
-  log.info 'Optional arguments:'
+  log.info '  --inputCsv     STRING      CSV format, requires header: \'expmat,regulators\'; these 3 entries are input files for ARACNe; exprmat is TSV format, row1 = geneID,sample_1,...,sample_n; rows2..-1 = geneID_1,values_1,...,values_n; regulators has header \'geneID\' as per exprmat row1, and one geneID per line for genes of interest (TFs, DEGs etc.)'
+  log.info '  --metaData     STRING      CSV format with header: \'sample,group\'; group relates group information used to discriminate between samples for msViper analysis'
   log.info ''
+  log.info 'Optional arguments:'
+  log.info '  --tag     STRING      label for the run, used to ID files; baseDir name used if not specified here'
   exit 1
+}
+
+//tag
+if(!params.tag){
+  params.tag = file("${workflow.launchDir}").getBaseName()
 }
 
 /* 0.0: Print script, configs used to run to pipeline_info for posterity
@@ -32,32 +36,32 @@ if (params.help) {
 WRITEOUT = Channel.fromPath("$baseDir/{main.nf,nextflow.config,conf/*}")
 process writeFiles {
 
-  publishDir "$baseDir/pipeline_info/", mode: "copy", pattern: "*"
+  publishDir "pipeline_info", mode: "copy", pattern: "*"
 
   input:
   file(writefile) from WRITEOUT
 
-  script:
-  """
-  """
+  output:
+  file('*') into written
+
 }
 
 /* 1.0: calculate threshold
 */
 Channel.fromPath("$params.inputCsv", type: 'file')
        .splitCsv( header: true )
-       .map { row -> [row.tag, file(row.exprmat), file(row.regulators)] }
+       .map { row -> [file(row.exprmat), file(row.regulators)]
        .into { calcthresh; viperdat }
 
 process calcThresh {
 
-  publishDir "$baseDir/analysis/$tag", mode: "copy", pattern: "*"
+  publishDir "analysis/ARACNe", mode: "copy", pattern: "*"
 
   input:
-  set val(tag), file(exprmat), file(regulators) from calcthresh
+  set file(exprmat), file(regulators) from calcthresh
 
   output:
-  set val(tag), file(exprmat), file(regulators), file("*.txt") into bootstrap
+  set file(exprmat), file(regulators), file("*.txt") into bootstrap
 
   script:
   """
@@ -77,11 +81,11 @@ process calcThresh {
 process bootStrap {
 
   input:
-  set val(tag), file(exprmat), file(regulators), file(threshold) from bootstrap
+  set file(exprmat), file(regulators), file(threshold) from bootstrap
   each s from 1..100
 
   output:
-  set val(tag), file("*.txt") into consolidate
+  set file("*.txt") into consolidate
 
   script:
   """
@@ -99,13 +103,13 @@ process bootStrap {
 */
 process consBoots {
 
-  publishDir "$baseDir/analysis/$tag", mode: "copy", pattern: "*"
+  publishDir "analysis/ARACNe", mode: "copy", pattern: "*"
 
   input:
-  set val(tag), file(bootstraps) from consolidate.groupTuple()
+  set file(bootstraps) from consolidate.groupTuple()
 
   output:
-  set val(tag), file("${tag}.network.txt") into viperrun
+  file("${params.tag}.network.txt") into aracne_network
 
   script:
   """
@@ -113,40 +117,34 @@ process consBoots {
   java -Xmx\$JVMEM -jar /usr/local/ARACNe-AP/dist/aracne.jar \
             -o ./ \
             --consolidate
-  mv network.txt $tag".network.txt"
+  mv network.txt ${params.tag}".network.txt"
   """
 }
 
 /* 4.0: Viper
 */
-Channel.fromPath("$params.metaData", type: 'file')
-       .splitCsv( header: true )
-       .map { row -> [file(row.metafile)] }
-       .set { metafiles }
-
-viperdat.join(viperrun).set{ viperin }
+METAFILE = Channel.fromPath("$params.metaData", type: 'file')
 
 process viper {
 
-  publishDir "$baseDir/analysis/$tag", mode: "copy", pattern: "*"
-  publishDir "$baseDir/analysis", mode: "copy", pattern: "*sig.tsv"
+  publishDir "analysis/msViper", mode: "copy", pattern: "*"
 
   input:
-  set val(tag), file(exprmat), file(regulators), file(network) from viperin
-  each file(metafile) from metafiles
-
+  set file(exprmat), file(regulators) from viperdat
+  file(network) from aracne_network
+  file(metadata) from METAFILE
 
   output:
-  file('*') into complete
+  file('*') into msviper_complete
 
   script:
   """
   Rscript --vanilla \
-    ${params.binDir}/run_viper.call.R \
-    ${params.binDir}/run_viper.func.R \
+    ${workflow.projectDir}/bin/run_viper.call.R \
+    ${workflow.projectDir}/bin/run_viper.func.R \
     $network \
     $exprmat \
-    $metafile \
-    $tag
+    $metadata \
+    ${params.tag}
   """
 }

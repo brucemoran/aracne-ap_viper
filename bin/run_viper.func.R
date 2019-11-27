@@ -86,7 +86,7 @@ runMsViper <- function(NETWORK, EXPRMAT, METADATA, TAG){
 filterSigRes <- function(RDATA, PVAL=NULL){
 
   if(is.null(PVAL)){
-    PVAL<-0.05
+    PVAL <- 0.05
   }
   hmart <- useEnsembl(biomart="ensembl", dataset="hsapiens_gene_ensembl")
   ens2ext <- as_tibble(getBM(attributes=c('ensembl_gene_id', 'external_gene_name'), mart = hmart))
@@ -96,7 +96,7 @@ filterSigRes <- function(RDATA, PVAL=NULL){
   got <- get(les)
   signames <- names(got[[1]]$es$p.value[got[[1]]$es$p.value<PVAL])
   if(length(signames>0)){
-    sigout <- ens2ext %>% dplyr::filter(ensembl_gene_id %in% signames)
+    sigout <- ens2ext %>% dplyr::filter(ensembl_gene_id %in% signames | external_gene_name %in% signames)
     sigout$size <- got[[1]]$es$size[names(got[[1]]$es$size) %in% signames]
     sigout$pvalue <- got[[1]]$es$p.value[names(got[[1]]$es$p.value) %in% signames]
     sigout$qvalue <- got[[1]]$es$q.value[names(got[[1]]$es$q.value) %in% signames]
