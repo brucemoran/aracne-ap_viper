@@ -12,13 +12,18 @@ runMsViper <- function(NETWORK, EXPRMAT, METADATA, TAG){
 
   ## create eset
   exprd <- read.table(EXPRMAT, row=1, header=T)
-  pheno <- read_tsv(METADATA) %>%
-           dplyr::mutate(sampleID = gsub("-",".",sampleID)) %>%
-           dplyr::filter(sampleID %in% colnames(exprd)) %>%
-           dplyr::rename(description=Group) %>%
-           as.data.frame()
-  exprds <- exprd[,colnames(exprd) %in% pheno$sampleID]
-  phenos <- pheno[pheno$sampleID %in% colnames(exprds),]
+  pheno <- read_tsv(METADATA)
+  if(sum(match(colnames(pheno),c("sampleID", "group")))!=3){
+    print("Converting metadata colnames, ensure they are in sample, group order or msViper may fail!")
+    colnames(pheno) <- c("sampleID", "group")
+  }
+  phenodf <- pheno %>%
+            dplyr::mutate(sampleID = gsub("-",".",sampleID)) %>%
+            dplyr::filter(sampleID %in% colnames(exprd)) %>%
+            dplyr::rename(description=group) %>%
+            as.data.frame()
+  exprds <- exprd[,colnames(exprd) %in% phenodf$sampleID]
+  phenos <- phenodf[phenodf$sampleID %in% colnames(exprds),]
   pData <- new("AnnotatedDataFrame",
                 data=data.frame(row.names = colnames(exprds),
                                 description = as.vector(phenos$description)))
@@ -102,5 +107,4 @@ filterSigRes <- function(RDATA, PVAL=NULL){
     sigout$qvalue <- got[[1]]$es$q.value[names(got[[1]]$es$q.value) %in% signames]
     outname <- gsub("RData", "sig.tsv", RDATA)
     write_tsv(sigout, path=outname)
-  }
-}
+  }}
