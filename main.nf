@@ -18,17 +18,13 @@ if (params.help) {
   log.info '  -profile standard,singularity'
   log.info ''
   log.info 'Mandatory arguments:'
-  log.info '  --inputCsv     STRING      CSV format, requires header: \'exprmat,regulators\'; these 3 entries are input files for ARACNe; exprmat is TSV format, row1 = geneID,sample_1,...,sample_n; rows2..-1 = geneID_1,values_1,...,values_n; regulators has header \'geneID\' as per exprmat row1, and one geneID per line for genes of interest (TFs, DEGs etc.); NB that acceptable geneIDs are \'ensembl_gene_id\' and \'external_gene_name\' from Ensembl'
+  log.info '  --inputCsv     STRING      CSV format, requires header: \'exprmat,regulators\'; these 2 entries are path to input files for ARACNe; exprmat is TSV format expression matrix, row1 = geneID sample_1 ... sample_n; rows2..-1 = geneID_1 values_1 ... values_n; regulators has header \'geneID\' as per exprmat row1, and one geneID per line for genes of interest (TFs, DEGs etc.); NB that acceptable geneIDs are \'ensembl_gene_id\' and \'external_gene_name\' from Ensembl for msViper downstream'
   log.info '  --metaData     STRING      TSV format with header: \'sample\tgroup\'; group relates group information used to discriminate between samples for msViper analysis'
   log.info ''
   log.info 'Optional arguments:'
-  log.info '  --tag     STRING      label for the run, used to ID files; baseDir name used if not specified here'
+  log.info ' --bootstraps INT specify number of bootstraps (default: 100)'
+  log.info ' --tag     STRING      label for the run, used to ID files (default: aracne)'
   exit 1
-}
-
-//tag
-if(!params.tag){
-  params.tag = file("${workflow.launchDir}").getBaseName()
 }
 
 /* 1.0: calculate threshold
@@ -51,7 +47,7 @@ process calcThresh {
   script:
   """
   JVMEM=\$(echo ${task.memory} | cut -d " " -f 1)"G"
-  java -jar /usr/local/ARACNe-AP/dist/aracne.jar \
+  java -Xmx\$JVMEM -jar /opt/miniconda/envs/jupyter_rnaseq/bin/aracne.jar \
     -e $exprmat\
     -o ./ \
     --tfs $regulators \
@@ -74,13 +70,15 @@ process bootStrap {
 
   script:
   """
+  {
   JVMEM=\$(echo ${task.memory} | cut -d " " -f 1)"G"
-  java -Xmx\$JVMEM -jar /usr/local/ARACNe-AP/dist/aracne.jar \
+  java -Xmx\$JVMEM -jar /opt/miniconda/envs/jupyter_rnaseq/bin/aracne.jar \
     -e $exprmat \
     -o ./ \
     --tfs $regulators \
     -p 1E-8 \
     --seed $s
+  } 2>&1 | tee ${s}.log.txt
   """
 }
 
@@ -99,7 +97,7 @@ process consBoots {
   script:
   """
   JVMEM=\$(echo ${task.memory} | cut -d " " -f 1)"G"
-  java -Xmx\$JVMEM -jar /usr/local/ARACNe-AP/dist/aracne.jar \
+  java -Xmx\$JVMEM -jar /opt/miniconda/envs/jupyter_rnaseq/bin/aracne.jar \
     -o ./ \
     --consolidate
   mv network.txt ${params.tag}".network.txt"

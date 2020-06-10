@@ -8,6 +8,5 @@ METADATA <- argsIn[4]
 TAG <- argsIn[5]
 
 runMsViper(NETWORK, EXPRMAT, METADATA, TAG)
-RDATAS <- dir(pattern="RData")
-
+RDATAS <- grep("ens2ext",dir(pattern="RData"),invert=TRUE,value=T)
 lapply(RDATAS, filterSigRes)
