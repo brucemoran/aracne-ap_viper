@@ -52,6 +52,7 @@ process calc_thresh {
 
   output:
   tuple file(exprmat), file(regulators), file("${params.runID}.miThreshold_p1E-8.txt") into bootstrap
+  tuple file(exprmat), file(regulators) into viperdat
 
   script:
   def taskmem = task.memory == null ? "" : "-Xmx" + javaTaskmem("${task.memory}")
