@@ -1,92 +1,99 @@
 #!/usr/bin/env nextflow
 
-/* Run ARACNe-AP and msViper
-*/
+def helpMessage() {
+  log.info"""
+  ------------------------------------------------------------------------------
+                        NEXTFLOW ARACNe-AP AND msVIPER
+  ------------------------------------------------------------------------------
+  Usage:
 
-params.help = ""
+  nextflow run brucemoran/aracne-ap
 
-if (params.help) {
-  log.info ''
-  log.info '------------------------------'
-  log.info 'NEXTFLOW ARACNe-AP AND msVIPER'
-  log.info '------------------------------'
-  log.info ''
-  log.info 'Usage: '
-  log.info 'nextflow run main.nf \\'
-  log.info '  --inputCsv data/input.csv \\'
-  log.info '  --metaData data/metadata.csv \\'
-  log.info '  -profile standard,singularity'
-  log.info ''
-  log.info 'Mandatory arguments:'
-  log.info '  --inputCsv     STRING      CSV format, requires header: \'exprmat,regulators\'; these 2 entries are path to input files for ARACNe; exprmat is TSV format expression matrix, row1 = geneID sample_1 ... sample_n; rows2..-1 = geneID_1 values_1 ... values_n; regulators has header \'geneID\' as per exprmat row1, and one geneID per line for genes of interest (TFs, DEGs etc.); NB that acceptable geneIDs are \'ensembl_gene_id\' and \'external_gene_name\' from Ensembl for msViper downstream'
-  log.info '  --metaData     STRING      TSV format with header: \'sample\tgroup\'; group relates group information used to discriminate between samples for msViper analysis'
-  log.info ''
-  log.info 'Optional arguments:'
-  log.info ' --bootstraps INT specify number of bootstraps (default: 100)'
-  log.info ' --tag     STRING      label for the run, used to ID files (default: aracne)'
-  exit 1
+  Mandatory arguments:
+
+    -profile        [str]       Configuration profile (required: singularity)
+    --exprmat       [file]      expression matrix in tab-separated format:
+                                header line in format:
+                                geneID sample_1 ... sampleID_n
+                                all other lines in format
+                                geneID_1 values_1 ... values_n etc.
+    --regulators    [file]      single geneID per line for genes of interest
+                                acceptable geneIDs are ensembl_gene_id or
+                                external_gene_name from Ensembl;
+                                header line indicates name of geneIDs
+    --metaData      [str]       metadata to discriminate between cohorts for
+                                msViper analysis; tab-separated format;
+                                header line format: sample group
+                                all other lines: sampleID_1 group_0 etc.
+
+
+  Optional arguments:
+
+    --bootstraps     [int]       specify number of bootstraps (default: 100)
+    --runID          [str]       label for the run, used to ID files (default: aracne)
+    --outDir         [str]       output directory (default: ARACNe)
+  """.stripIndet()
 }
 
-/* 1.0: calculate threshold
-*/
-Channel.fromPath("$params.inputCsv", type: 'file')
-       .splitCsv( header: true )
-       .map { row -> [file(row.exprmat), file(row.regulators)] }
-       .into { calcthresh; viperdat }
+//Java task memory allocation via task.memory
+javaTaskmem = { it.replace(" GB", "g") }
 
-process calcThresh {
+// 1.0: calculate threshold
+Channel.fromPath("$params.exprmat", type: 'file', checkIfExists: true).set { exprmat_ch }
+Channel.fromPath("$params.regulators", type: 'file', checkIfExists: true).set { regulators_ch }
 
-  publishDir "analysis/ARACNe", mode: "copy", pattern: "*"
+process calc_thresh {
+
+  publishDir "${params.outDir}/setup", mode: "copy", pattern: "*"
 
   input:
-  set file(exprmat), file(regulators) from calcthresh
+  file(exprmat) from exprmat_ch
+  file(regulators) from regulators_ch
 
   output:
-  set file(exprmat), file(regulators), file("*.txt") into bootstrap
+  tuple file(exprmat), file(regulators), file("${params.runID}.miThreshold_p1E-8.txt") into bootstrap
 
   script:
+  def taskmem = task.memory == null ? "" : "-Xmx" + javaTaskmem("${task.memory}")
   """
-  JVMEM=\$(echo ${task.memory} | cut -d " " -f 1)"G"
-  java -Xmx\$JVMEM -jar /opt/miniconda/envs/jupyter_rnaseq/bin/aracne.jar \
-    -e $exprmat\
-    -o ./ \
-    --tfs $regulators \
+  java ${taskmem} -jar /opt/miniconda/envs/jupyter_rnaseq/bin/aracne.jar \
+    -e ${exprmat}\
+    -o ${params.runID}.miThreshold_p1E-8.txt \
+    --tfs ${regulators} \
     -p 1E-8 \
-    --seed 1 \
+    --seed 843892 \
     --calculateThreshold
   """
 }
 
-/* 2.0: bootstraps
-*/
-process bootStrap {
+// 2.0: bootstraps
+
+process boot_strap {
 
   input:
-  set file(exprmat), file(regulators), file(threshold) from bootstrap
-  each s from 1..100
+  tuple file(exprmat), file(regulators), file(threshold) from bootstrap
+  each s from 1..params.bootstraps
 
   output:
-  file("*.txt") into consolidate
+  file("${s}.bootstrap.txt") into consolidate
 
   script:
+  def taskmem = task.memory == null ? "" : "-Xmx" + javaTaskmem("${task.memory}")
   """
-  {
-  JVMEM=\$(echo ${task.memory} | cut -d " " -f 1)"G"
-  java -Xmx\$JVMEM -jar /opt/miniconda/envs/jupyter_rnaseq/bin/aracne.jar \
-    -e $exprmat \
-    -o ./ \
-    --tfs $regulators \
+  java ${taskmem} -jar /opt/miniconda/envs/jupyter_rnaseq/bin/aracne.jar \
+    -e ${exprmat} \
+    -o ${s}.bootstrap.txt \
+    --tfs ${regulators} \
     -p 1E-8 \
-    --seed $s
-  } 2>&1 | tee ${s}.log.txt
+    --seed ${s}
   """
 }
 
 /* 3.0: consolidate bootstraps
 */
-process consBoots {
+process cons_boots {
 
-  publishDir "analysis/ARACNe", mode: "copy", pattern: "*"
+  publishDir "${params.outDir}/setup", mode: "copy"
 
   input:
   file(bootstraps) from consolidate.collect()
@@ -95,27 +102,27 @@ process consBoots {
   file("${params.tag}.network.txt") into aracne_network
 
   script:
+  def taskmem = task.memory == null ? "" : "-Xmx" + javaTaskmem("${task.memory}")
   """
-  JVMEM=\$(echo ${task.memory} | cut -d " " -f 1)"G"
-  java -Xmx\$JVMEM -jar /opt/miniconda/envs/jupyter_rnaseq/bin/aracne.jar \
+  java ${taskmem} -jar /opt/miniconda/envs/jupyter_rnaseq/bin/aracne.jar \
     -o ./ \
     --consolidate
-  mv network.txt ${params.tag}".network.txt"
+  mv network.txt ${params.runID}".network.txt"
   """
 }
 
-/* 4.0: Viper
-*/
-METAFILE = Channel.fromPath("$params.metaData", type: 'file')
+// 4.0: Viper
+
+Channel.fromPath("$params.metaData", type: 'file', checkIfExists: true).set { metafile_ch }
 
 process viper {
 
-  publishDir "analysis/msViper", mode: "copy", pattern: "*"
+  publishDir "${params.outDir}/msViper", mode: "copy"
 
   input:
-  set file(exprmat), file(regulators) from viperdat
+  tuple file(exprmat), file(regulators) from viperdat
   file(network) from aracne_network
-  file(metadata) from METAFILE
+  file(metadata) from metafile_ch
 
   output:
   file('*') into msviper_complete
@@ -125,9 +132,9 @@ process viper {
   Rscript --vanilla \
     ${workflow.projectDir}/bin/run_viper.call.R \
     ${workflow.projectDir}/bin/run_viper.func.R \
-    $network \
-    $exprmat \
-    $metadata \
+    ${network} \
+    ${exprmat} \
+    ${metadata} \
     ${params.tag}
   """
 }
