@@ -100,7 +100,7 @@ process cons_boots {
   file(bootstraps) from consolidate.collect()
 
   output:
-  file("${params.tag}.network.txt") into aracne_network
+  file("${params.runID}.network.txt") into aracne_network
 
   script:
   def taskmem = task.memory == null ? "" : "-Xmx" + javaTaskmem("${task.memory}")
@@ -136,6 +136,6 @@ process viper {
     ${network} \
     ${exprmat} \
     ${metadata} \
-    ${params.tag}
+    ${params.runID}
   """
 }
