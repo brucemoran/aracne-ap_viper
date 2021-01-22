@@ -51,7 +51,7 @@ process calc_thresh {
   file(regulators) from regulators_ch
 
   output:
-  tuple file(exprmat), file(regulators), file("${params.runID}.miThreshold_p1E-8.txt") into bootstrap
+  tuple file(exprmat), file(regulators), file('*.txt') into bootstrap
   tuple file(exprmat), file(regulators) into viperdat
 
   script:
@@ -59,7 +59,7 @@ process calc_thresh {
   """
   java ${taskmem} -jar /opt/miniconda/envs/jupyter_rnaseq/bin/aracne.jar \
     -e ${exprmat}\
-    -o ${params.runID}.miThreshold_p1E-8.txt \
+    -o ./ \
     --tfs ${regulators} \
     -p 1E-8 \
     --seed 843892 \
@@ -76,14 +76,14 @@ process boot_strap {
   each s from 1..params.bootstraps
 
   output:
-  file("${s}.bootstrap.txt") into consolidate
+  file('*.txt') into consolidate
 
   script:
   def taskmem = task.memory == null ? "" : "-Xmx" + javaTaskmem("${task.memory}")
   """
   java ${taskmem} -jar /opt/miniconda/envs/jupyter_rnaseq/bin/aracne.jar \
     -e ${exprmat} \
-    -o ${s}.bootstrap.txt \
+    -o ./ \
     --tfs ${regulators} \
     -p 1E-8 \
     --seed ${s}
