@@ -12,7 +12,7 @@ def helpMessage() {
   Mandatory arguments:
 
     -profile        [str]       Configuration profile (required: singularity)
-    --exprmat       [file]      expression matrix in tab-separated format:
+    --exprmat       [file]      expression matrix in tab-separated TPM format:
                                 header line in format:
                                 geneID sample_1 ... sampleID_n
                                 all other lines in format
@@ -57,7 +57,7 @@ process calc_thresh {
   script:
   def taskmem = task.memory == null ? "" : "-Xmx" + javaTaskmem("${task.memory}")
   """
-  java ${taskmem} -jar /opt/miniconda/envs/jupyter_rnaseq/bin/aracne.jar \
+  aracne-ap ${taskmem} \
     -e ${exprmat}\
     -o ./ \
     --tfs ${regulators} \
@@ -81,7 +81,7 @@ process boot_strap {
   script:
   def taskmem = task.memory == null ? "" : "-Xmx" + javaTaskmem("${task.memory}")
   """
-  java ${taskmem} -jar /opt/miniconda/envs/jupyter_rnaseq/bin/aracne.jar \
+  aracne-ap ${taskmem} \
     -e ${exprmat} \
     -o ./ \
     --tfs ${regulators} \
@@ -105,7 +105,7 @@ process cons_boots {
   script:
   def taskmem = task.memory == null ? "" : "-Xmx" + javaTaskmem("${task.memory}")
   """
-  java ${taskmem} -jar /opt/miniconda/envs/jupyter_rnaseq/bin/aracne.jar \
+  aracne-ap ${taskmem} \
     -o ./ \
     --consolidate
   mv network.txt ${params.runID}".network.txt"
@@ -130,12 +130,7 @@ process viper {
 
   script:
   """
-  Rscript --vanilla \
-    ${workflow.projectDir}/bin/run_viper.call.R \
-    ${workflow.projectDir}/bin/run_viper.func.R \
-    ${network} \
-    ${exprmat} \
-    ${metadata} \
-    ${params.runID}
+  Rscript -e "RNAseqon::parse_aracne(\\"${network}\\", \\"${exprmat}\\", \\"${metadata}\\", \\"${params.runID}\\")
+  Rscript -e "RNAseqon::run_msviper(\\"${params.runID}\\", \\"${params.runID}.parse_inputs.RData\\")
   """
 }
