@@ -112,11 +112,11 @@ process cons_boots {
   """
 }
 
-// 4.0: Viper
+// 4.0: msViper Setup
 
 Channel.fromPath("$params.metaData", type: 'file', checkIfExists: true).set { metafile_ch }
 
-process viper {
+process viper_set {
 
   publishDir "${params.outDir}/msViper", mode: "copy"
 
@@ -126,11 +126,30 @@ process viper {
   file(metadata) from metafile_ch
 
   output:
-  file('*') into msviper_complete
+  file("${params.runID}.parse_inputs.RData") into msviper_run
 
   script:
   """
   Rscript -e "RNAseqon::parse_aracne(\\"${network}\\", \\"${exprmat}\\", \\"${metadata}\\", \\"${params.runID}\\")"
-  Rscript -e "RNAseqon::run_msviper(\\"${params.runID}\\", \\"${params.runID}.parse_inputs.RData\\")"
+  """
+}
+
+// 4.1: Viper Run
+
+Channel.fromPath("$params.metaData", type: 'file', checkIfExists: true).set { metafile_ch }
+
+process viper {
+
+  publishDir "${params.outDir}/msViper", mode: "copy"
+
+  input:
+  file(rdata) from msviper_run
+
+  output:
+  file('*') into msviper_complete
+
+  script:
+  """
+  Rscript -e "RNAseqon::run_msviper(\\"${params.runID}\\", \\"${rdata}\\")"
   """
 }
