@@ -29,9 +29,12 @@ def helpMessage() {
 
   Optional arguments:
 
-    --bootstraps     [int]       specify number of bootstraps (default: 100)
-    --runID          [str]       label for the run, used to ID files (default: aracne)
-    --outDir         [str]       output directory (default: ARACNe)
+    --bootstraps     [int]      specify number of bootstraps (default: 100)
+    --runID          [str]      label for the run, used to ID files (default: aracne)
+    --outDir         [str]      output directory (default: ARACNe)
+    --genomePrefix   [str]      genome_prefix for viper_set process; this is
+                                used for annotation and takes suffix "_gene_ensembl"
+                                for biomaRt (default: "hsapiens")
   """.stripIndet()
 }
 
@@ -130,7 +133,7 @@ process viper_set {
 
   script:
   """
-  Rscript -e "RNAseqon::parse_aracne(\\"${network}\\", \\"${exprmat}\\", \\"${metadata}\\", \\"${params.runID}\\")"
+  Rscript -e "RNAseqon::parse_aracne(\\"${network}\\", \\"${exprmat}\\", \\"${metadata}\\", \\"${params.runID}\\", \\"${params.genomePrefix}\\")"
   """
 }
 
