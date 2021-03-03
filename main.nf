@@ -130,7 +130,7 @@ process viper {
 
   script:
   """
-  Rscript -e "RNAseqon::parse_aracne(\\"${network}\\", \\"${exprmat}\\", \\"${metadata}\\", \\"${params.runID}\\")
-  Rscript -e "RNAseqon::run_msviper(\\"${params.runID}\\", \\"${params.runID}.parse_inputs.RData\\")
+  Rscript -e "RNAseqon::parse_aracne(\\"${network}\\", \\"${exprmat}\\", \\"${metadata}\\", \\"${params.runID}\\")"
+  Rscript -e "RNAseqon::run_msviper(\\"${params.runID}\\", \\"${params.runID}.parse_inputs.RData\\")"
   """
 }
