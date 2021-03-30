@@ -129,7 +129,7 @@ process viper_set {
   file(metadata) from metafile_ch
 
   output:
-  tuple file("${params.runID}.parse_inputs.RData") into msviper_run
+  file("${params.runID}.parse_inputs.RData") into msviper_run
 
   script:
   """
