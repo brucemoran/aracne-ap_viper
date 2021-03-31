@@ -155,6 +155,6 @@ process viper {
 
   script:
   """
-  Rscript -e "RNAseqon::run_msviper(\\"${params.runID}\\", \\"${rdata}\\", \\"${genomePrefix}\\", \\"${msigdbSpecies}\\")"
+  Rscript -e "RNAseqon::run_msviper(\\"${params.runID}\\", \\"${rdata}\\", \\"${params.genomePrefix}\\", \\"${params.msigdbSpecies}\\")"
   """
 }
