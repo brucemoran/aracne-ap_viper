@@ -34,7 +34,9 @@ def helpMessage() {
     --outDir         [str]      output directory (default: ARACNe)
     --genomePrefix   [str]      genome_prefix for viper_set process; this is
                                 used for annotation and takes suffix "_gene_ensembl"
-                                for biomaRt (default: "hsapiens")
+                                for biomaRt (e.g.: "hsapiens")
+    --msigdbSpecies  [str]      msigdb_species for run_viper process; this is
+                                used for annotation (e.g.: "Homo sapiens")
   """.stripIndet()
 }
 
@@ -153,6 +155,6 @@ process viper {
 
   script:
   """
-  Rscript -e "RNAseqon::run_msviper(\\"${params.runID}\\", \\"${rdata}\\")"
+  Rscript -e "RNAseqon::run_msviper(\\"${params.runID}\\", \\"${rdata}\\", \\"${genomePrefix}\\", \\"${msigdbSpecies}\\")"
   """
 }
