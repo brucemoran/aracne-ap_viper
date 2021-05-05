@@ -123,7 +123,7 @@ Channel.fromPath("$params.metaData", type: 'file', checkIfExists: true).set { me
 
 process viper_set {
 
-  publishDir "${params.outDir}/msviper/parse_aracne", mode: "copy"
+  publishDir "${params.outDir}/setup", mode: "copy"
 
   input:
   tuple file(exprmat), file(regulators) from viperdat
@@ -145,7 +145,7 @@ Channel.fromPath("$params.metaData", type: 'file', checkIfExists: true).set { me
 
 process viper {
 
-  publishDir "${params.outDir}/msviper/run", mode: "copy"
+  publishDir "${params.outDir}/msviper", mode: "copy"
 
   input:
   file(rdata) from msviper_run
