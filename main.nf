@@ -7,7 +7,7 @@ def helpMessage() {
   ------------------------------------------------------------------------------
   Usage:
 
-  nextflow run brucemoran/aracne-ap
+  nextflow run brucemoran/aracne-ap_viper
 
   Mandatory arguments:
 
